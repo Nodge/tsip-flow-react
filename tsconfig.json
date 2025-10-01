@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+        "lib": ["esnext", "dom"],
+        "module": "esnext",
+        "target": "esnext",
+        "moduleResolution": "bundler",
+        "resolveJsonModule": true,
+        "jsx": "react-jsx",
+        "allowJs": true,
+        "allowSyntheticDefaultImports": true,
+        "esModuleInterop": true,
+        "isolatedModules": true,
+        "verbatimModuleSyntax": true,
+        "erasableSyntaxOnly": true,
+        "importHelpers": false,
+        "strict": true,
+        "noUncheckedIndexedAccess": true,
+        "skipLibCheck": true,
+        "noEmit": true
+    }
+}
