@@ -2,6 +2,7 @@ import type { AsyncFlow, AsyncFlowState } from "@tsip/types";
 import { useRef, useEffect, useMemo } from "react";
 import { skipToken, type SkipToken } from "../skipToken";
 import { useFlow } from "./useFlow";
+import { useIsSsr } from "./useIsSsr";
 
 /**
  * Options for configuring the behavior of {@link useAsyncFlow}.
@@ -210,6 +211,7 @@ export function useAsyncFlow<T, UseSuspense extends boolean = true, UseErrorBoun
     const state = useFlow(flow);
     const prevStateRef = useRef(state);
     const { suspense, errorBoundary } = options ?? {};
+    const isSsr = useIsSsr();
 
     useEffect(() => {
         prevStateRef.current = state;
@@ -223,20 +225,27 @@ export function useAsyncFlow<T, UseSuspense extends boolean = true, UseErrorBoun
         const prevState = prevStateRef.current;
 
         if (state.status === "pending") {
-            if (!prevState || prevState.status !== "success") {
-                if (state.data !== undefined) {
-                    return updatingState(state.data);
-                }
-
-                if (suspense !== false) {
-                    // eslint-disable-next-line @typescript-eslint/only-throw-error
-                    throw flow.asPromise();
-                }
-
-                return loadingState() as UseAsyncFlowResult<T, UseSuspense, UseErrorBoundary>;
+            if (prevState && prevState.status === "success") {
+                return updatingState(prevState.data);
             }
 
-            return updatingState(prevState.data);
+            if (state.data !== undefined) {
+                return updatingState(state.data);
+            }
+
+            const isSuspenseEnabled = suspense !== false || isSsr;
+            if (isSuspenseEnabled) {
+                const isServer = typeof window === "undefined";
+                const isHydration = isSsr && !isServer;
+                if (isHydration) {
+                    throw new Error("Unexpected pending state for async flow during component hydration");
+                }
+
+                // eslint-disable-next-line @typescript-eslint/only-throw-error
+                throw flow.asPromise();
+            }
+
+            return loadingState() as UseAsyncFlowResult<T, UseSuspense, UseErrorBoundary>;
         }
 
         if (state.status === "error") {

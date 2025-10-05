@@ -1,6 +1,7 @@
 import type { Flow } from "@tsip/types";
-import { useSyncExternalStore, useCallback } from "react";
+import { useSyncExternalStore, useCallback, useId } from "react";
 import { skipToken, type SkipToken } from "../skipToken";
+import { useHydration } from "../hydration/context";
 
 /**
  * Subscribes to a Flow and returns its current value.
@@ -50,5 +51,24 @@ export function useFlow<T>(flow: Flow<T> | SkipToken): T | null {
         return flow.getSnapshot();
     }, [flow]);
 
-    return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+    const flowId = useId();
+    const hydration = useHydration();
+
+    const getServerSnapshot = useCallback(() => {
+        if (flow === skipToken) return null;
+
+        // NOTE: should calculate the actual value regardless of hydration.
+        // This helps to speed up async computations when hydration finishes.
+        const value = flow.getSnapshot();
+
+        if (hydration) {
+            const serverValue = hydration.hydrate(flowId);
+            if (serverValue) return serverValue.value as T;
+            hydration.register(flowId, flow, value);
+        }
+
+        return value;
+    }, [flow, flowId, hydration]);
+
+    return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }

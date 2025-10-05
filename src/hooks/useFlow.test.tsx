@@ -1,17 +1,24 @@
-import { describe, expectTypeOf, it, expect, afterEach } from "vitest";
-import { cleanup, act, renderHook } from "@testing-library/react";
+import { Writable } from "stream";
+import { describe, expectTypeOf, it, expect, afterEach, vi } from "vitest";
+import { Suspense, type ReactElement, type ReactNode } from "react";
+import { renderToPipeableStream } from "react-dom/server";
+import { cleanup, act, renderHook, render, screen, waitFor } from "@testing-library/react";
 import type { Flow } from "@tsip/types";
 import { createFlow } from "@tsip/flow";
 import { skipToken, type SkipToken } from "../skipToken";
+import { FlowHydrationProvider } from "../hydration/context";
+import { createFlowHydrationManager as createServerHydrationManager } from "../hydration/server";
+import { createFlowHydrationManager as createClientHydrationManager } from "../hydration/client";
+import type { FlowHydrationManager } from "../hydration/types";
 import { useFlow } from "./useFlow";
 
 declare const window: Global & {
-    _FS: Map<string, unknown> | undefined;
+    _FS_: Map<string, unknown> | undefined;
 };
 
 describe("useFlow", () => {
     afterEach(() => {
-        delete window._FS;
+        delete window._FS_;
         cleanup();
     });
 
@@ -150,6 +157,202 @@ describe("useFlow", () => {
             expect(getSubscriptionsCount(flow)).toBe(1);
         });
     });
+
+    describe("hydration behavior", () => {
+        it("should hydrate without errors with different values on server and client", () => {
+            const flow = createFlow("client value");
+            const manager = createClientHydrationManager();
+            window._FS_ = new Map([["«R0»", "server value"]]);
+
+            const html = '<div data-testid="value">server value</div>';
+            const container = document.createElement("div");
+            container.innerHTML = html;
+            document.body.appendChild(container);
+
+            const TestComponent = () => {
+                const value = useFlow(flow);
+                return <div data-testid="value">{value}</div>;
+            };
+
+            render(<TestComponent />, {
+                container,
+                wrapper({ children }) {
+                    return <FlowHydrationProvider manager={manager}>{children}</FlowHydrationProvider>;
+                },
+                hydrate: true,
+            });
+
+            expect(screen.getByTestId("value")).toHaveTextContent("client value");
+        });
+
+        it("should hydrate server markup without suspense", async () => {
+            const flow = createFlow("server value");
+            const serverManager = createServerHydrationManager();
+
+            const TestComponent = () => {
+                const value = useFlow(flow);
+                return <div data-testid="value">{value}</div>;
+            };
+
+            const { html } = await renderToString(
+                <FlowHydrationProvider manager={serverManager}>
+                    <TestComponent />
+                </FlowHydrationProvider>,
+                serverManager,
+            );
+
+            expect(html).toMatchInlineSnapshot(
+                `"<script>(()=>{var c,n,w=self,s='_FS_';w[s]||(w[s]=new Map);c=c=>{(n=document.currentScript)&&n.remove()};w[s].m=r=>{for(var[k,v]of r)w[s].set(k,v);c()};w[s].d=r=>{for(var[f,t]of r)w[s].set(t,w[s].get(f));c()}})();_FS_.m(new Map([["«R0»","server value"]]));</script><div data-testid="value">server value</div>"`,
+            );
+
+            const hydrationContainer = document.createElement("div");
+            hydrationContainer.innerHTML = html;
+            document.body.appendChild(hydrationContainer);
+            runScripts(hydrationContainer);
+
+            flow.emit("client value");
+            const clientManager = createClientHydrationManager();
+
+            render(
+                <FlowHydrationProvider manager={clientManager}>
+                    <TestComponent />
+                </FlowHydrationProvider>,
+                {
+                    container: hydrationContainer,
+                    hydrate: true,
+                },
+            );
+
+            expect(screen.getByTestId("value")).toHaveTextContent("client value");
+        });
+
+        it("should hydrate server markup with suspense", async () => {
+            let resolved = false;
+            const { promise, resolve } = Promise.withResolvers<undefined>();
+
+            const flow = createFlow("server value");
+            const serverManager = createServerHydrationManager();
+
+            const App = ({ children, manager }: { children: ReactNode; manager: FlowHydrationManager }) => {
+                return (
+                    <FlowHydrationProvider manager={manager}>
+                        <main>
+                            <h1>App</h1>
+                            <Suspense fallback={<div data-testid="fallback">Loading...</div>}>{children}</Suspense>
+                        </main>
+                    </FlowHydrationProvider>
+                );
+            };
+
+            const TestComponent = () => {
+                if (!resolved) {
+                    // eslint-disable-next-line @typescript-eslint/only-throw-error
+                    throw promise;
+                }
+                const value = useFlow(flow);
+                return <div data-testid="value">{value}</div>;
+            };
+
+            const renderPromise = renderToString(
+                <App manager={serverManager}>
+                    <TestComponent />
+                </App>,
+                serverManager,
+            );
+
+            // should wait for the first render to finish
+            await Promise.resolve();
+
+            act(() => {
+                resolved = true;
+                resolve(undefined);
+            });
+
+            const { html } = await renderPromise;
+
+            expect(html).toMatchInlineSnapshot(
+                `"<main><h1>App</h1><!--$?--><template id="B:0"></template><div data-testid="fallback">Loading...</div><!--/$--></main><script>(()=>{var c,n,w=self,s='_FS_';w[s]||(w[s]=new Map);c=c=>{(n=document.currentScript)&&n.remove()};w[s].m=r=>{for(var[k,v]of r)w[s].set(k,v);c()};w[s].d=r=>{for(var[f,t]of r)w[s].set(t,w[s].get(f));c()}})();_FS_.m(new Map([["«R2»","server value"]]));</script><div hidden id="S:0"><div data-testid="value">server value</div></div><script>$RC=function(b,c,e){c=document.getElementById(c);c.parentNode.removeChild(c);var a=document.getElementById(b);if(a){b=a.previousSibling;if(e)b.data="$!",a.setAttribute("data-dgst",e);else{e=b.parentNode;a=b.nextSibling;var f=0;do{if(a&&8===a.nodeType){var d=a.data;if("/$"===d)if(0===f)break;else f--;else"$"!==d&&"$?"!==d&&"$!"!==d||f++}d=a.nextSibling;e.removeChild(a);a=d}while(a);for(;c.firstChild;)e.insertBefore(c.firstChild,a);b.data="$"}b._reactRetry&&b._reactRetry()}};$RC("B:0","S:0")</script>"`,
+            );
+
+            const hydrationContainer = document.createElement("div");
+            hydrationContainer.innerHTML = html;
+            document.body.appendChild(hydrationContainer);
+            runScripts(hydrationContainer);
+
+            flow.emit("client value");
+            const clientManager = createClientHydrationManager();
+
+            let clientResolved = false;
+            const { promise: clientPromise, resolve: resolveClient } = Promise.withResolvers<undefined>();
+            const ClientTestComponent = () => {
+                const value = useFlow(flow);
+                if (!clientResolved) {
+                    // eslint-disable-next-line @typescript-eslint/only-throw-error
+                    throw clientPromise;
+                }
+                return <div data-testid="value">{value}</div>;
+            };
+
+            render(
+                <App manager={clientManager}>
+                    <ClientTestComponent />
+                </App>,
+                {
+                    container: hydrationContainer,
+                    hydrate: true,
+                },
+            );
+
+            expect(screen.getByTestId("value")).toHaveTextContent("server value");
+
+            act(() => {
+                clientResolved = true;
+                resolveClient(undefined);
+            });
+
+            await waitFor(() => {
+                expect(screen.getByTestId("value")).toHaveTextContent("client value");
+            });
+        });
+
+        it("should work without hydration provider", async () => {
+            const flow = createFlow("server value");
+            const serverManager = createServerHydrationManager();
+
+            const TestComponent = () => {
+                const value = useFlow(flow);
+                return <div data-testid="value">{value}</div>;
+            };
+
+            const { html } = await renderToString(<TestComponent />, serverManager);
+            expect(html).toMatchInlineSnapshot(`"<div data-testid="value">server value</div>"`);
+
+            const hydrationContainer = document.createElement("div");
+            hydrationContainer.innerHTML = html;
+            document.body.appendChild(hydrationContainer);
+            runScripts(hydrationContainer);
+
+            flow.emit("client value");
+
+            const ClientTestComponent = () => {
+                const value = useFlow(flow);
+                return <div data-testid="value">{value}</div>;
+            };
+
+            const errorSpy = vi.fn();
+            render(<ClientTestComponent />, {
+                container: hydrationContainer,
+                hydrate: true,
+                onRecoverableError(err) {
+                    errorSpy(err);
+                    expect(err).toHaveProperty("message", expect.stringMatching("Hydration failed"));
+                },
+            });
+
+            expect(errorSpy).toHaveBeenCalledTimes(1);
+            expect(screen.getByTestId("value")).toHaveTextContent("client value");
+        });
+    });
 });
 
 function getSubscriptionsCount(flow: Flow<unknown>): number {
@@ -157,4 +360,56 @@ function getSubscriptionsCount(flow: Flow<unknown>): number {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const subscriptions: Set<unknown> = flow.subscriptions;
     return subscriptions.size;
+}
+
+async function renderToString(element: ReactElement, manager: FlowHydrationManager) {
+    const html = await new Promise<string>((resolve, reject) => {
+        let content = "";
+
+        const htmlStream = new Writable({
+            write(chunk: Buffer, encoding, callback) {
+                content += getHydrationScripts(manager);
+                content += chunk.toString();
+                callback();
+            },
+        });
+
+        let didError = false;
+        const stream = renderToPipeableStream(element, {
+            onShellReady() {
+                stream.pipe(htmlStream);
+            },
+            onShellError(error) {
+                // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+                reject(error);
+            },
+            onError(err) {
+                didError = true;
+                console.error(err);
+            },
+        });
+
+        htmlStream.on("finish", () => {
+            expect(didError).toBe(false);
+            resolve(content);
+        });
+
+        htmlStream.on("error", (err) => {
+            reject(err);
+        });
+    });
+
+    return { html };
+}
+
+function getHydrationScripts(manager: FlowHydrationManager) {
+    const script = manager.getScript();
+    if (!script) return "";
+    return `<script>${script}</script>`;
+}
+
+function runScripts(node: HTMLElement) {
+    node.querySelectorAll("script").forEach((script) => {
+        (0, eval)(script.textContent);
+    });
 }
