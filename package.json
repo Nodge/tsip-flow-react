@@ -1,8 +1,21 @@
 {
     "name": "@tsip/flow-react",
     "version": "0.0.0",
-    "description": "",
-    "keywords": [],
+    "description": "React hooks and utilities for integrating TSIP reactive data flows into React applications",
+    "keywords": [
+        "react",
+        "hooks",
+        "reactive",
+        "flow",
+        "tsip",
+        "typescript",
+        "suspense",
+        "ssr",
+        "hydration",
+        "async",
+        "state-management",
+        "effects"
+    ],
     "author": "Maksim Zemskov <maxaz74@gmail.com>",
     "license": "MIT",
     "bugs": {
@@ -16,10 +29,11 @@
     "engines": {
         "node": ">=18"
     },
-    "packageManager": "pnpm@10.16.0",
+    "packageManager": "pnpm@10.18.2",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "exports": {
+        "./package.json": "./package.json",
         ".": {
             "import": {
                 "types": "./dist/index.d.mts",
@@ -30,7 +44,6 @@
                 "default": "./dist/index.js"
             }
         },
-        "./package.json": "./package.json",
         "./server": {
             "import": {
                 "types": "./dist/server.d.mts",
@@ -55,34 +68,35 @@
         "fmt": "prettier --write . --log-level error",
         "test": "vitest",
         "typecheck": "tsc --noEmit",
-        "changeset": "changeset add"
+        "changeset": "changeset add",
+        "ci:release": "pnpm run build && pnpm exec changeset publish"
     },
     "dependencies": {
-        "serialize-javascript": "^6.0.0"
+        "serialize-javascript": "^6.0.2"
     },
     "devDependencies": {
         "@changesets/changelog-github": "0.5.1",
-        "@changesets/cli": "2.29.6",
-        "@eslint/js": "9.35.0",
+        "@changesets/cli": "2.29.7",
+        "@eslint/js": "9.36.0",
         "@testing-library/dom": "10.4.1",
-        "@testing-library/jest-dom": "6.9.0",
+        "@testing-library/jest-dom": "6.8.0",
         "@testing-library/react": "16.3.0",
-        "@tsip/flow": "link:../flow",
-        "@tsip/types": "link:../types",
+        "@tsip/flow": "0.1.0",
+        "@tsip/types": "0.2.0",
         "@types/eslint": "9.6.1",
-        "@types/react": "19.1.16",
+        "@types/react": "19.1.14",
         "@types/react-dom": "19.1.9",
         "@types/serialize-javascript": "5.0.4",
         "@vitest/coverage-v8": "3.2.4",
-        "eslint": "9.35.0",
+        "eslint": "9.36.0",
         "jsdom": "27.0.0",
-        "lefthook": "1.12.3",
+        "lefthook": "1.13.4",
         "prettier": "3.6.2",
         "react": "19.1.1",
         "react-dom": "19.1.1",
         "tsup": "8.5.0",
         "typescript": "5.9.2",
-        "typescript-eslint": "8.42.0",
+        "typescript-eslint": "8.44.1",
         "vitest": "3.2.4"
     },
     "peerDependencies": {
