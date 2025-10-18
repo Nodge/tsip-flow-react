@@ -1,7 +1,11 @@
 export { skipToken, type SkipToken } from "./skipToken";
 export { useFlow } from "./hooks/useFlow";
-export { useAsyncFlow, type UseAsyncFlowOptions, type UseAsyncFlowResult } from "./hooks/useAsyncFlow";
-export { useAsyncFlows, type UseAsyncFlowsOptions, type UseAsyncFlowsResult } from "./hooks/useAsyncFlows";
+export {
+    useAsyncFlow,
+    type UseAsyncFlowResult,
+    type UseAsyncFlowAccessor,
+    type UseAsyncFlowState,
+} from "./hooks/useAsyncFlow";
 export { useFlowEffect } from "./hooks/useFlowEffect";
 export type { FlowHydrationManager } from "./hydration/types";
 export { FlowHydrationProvider, type FlowHydrationProviderProps } from "./hydration/context";

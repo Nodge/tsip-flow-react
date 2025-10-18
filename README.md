@@ -7,7 +7,7 @@ React hooks and utilities for integrating reactive data flows based on the [Type
 - **Standards-Based**: Built on the TypeScript Interface Proposals for seamless compatibility with TSIP-compatible libraries
 - **React Integration**: Purpose-built hooks for consuming flows in React components
 - **Type-Safe**: Comprehensive TypeScript support with full type inference
-- **Lightweight**: Only 1.3KB minified+gzipped
+- **Lightweight**: Only 1.1KB minified+gzipped
 - **Suspense & Error Boundaries**: First-class support for React Suspense and Error Boundaries
 - **SSR/SSG Support**: Full server-side rendering and static generation support with hydration
 
@@ -73,7 +73,7 @@ function ConditionalMessage({ enabled }: { enabled: boolean }) {
 }
 ```
 
-### `useAsyncFlow<T>(flow: AsyncFlow<T>, options?): UseAsyncFlowResult<T>`
+### `useAsyncFlow<T>(flow: AsyncFlow<T>): UseAsyncFlowResult<T>`
 
 Subscribes to an AsyncFlow and returns its current state. By default, integrates with React Suspense and Error Boundaries.
 
@@ -96,61 +96,27 @@ function App() {
 }
 
 function UserProfile() {
-    // Throws promise during loading, throws error on failure
-    const { data } = useAsyncFlow(userFlow);
-    return <div>Welcome, {data.name}!</div>;
+    // Starts loading immediately, subscribes to flow updates
+    const [user] = useAsyncFlow(userFlow);
+
+    // The user() call returns data and integrates with Suspense and Error Boundary
+    return <div>Welcome, {user().name}!</div>;
 }
 ```
-
-**Options:**
-
-- `suspense?: boolean` - Enable React Suspense integration (default: `true`)
-- `errorBoundary?: boolean` - Enable Error Boundary integration (default: `true`)
 
 **Without Suspense/Error Boundaries:**
 
 ```tsx
 function UserProfile() {
-    const { data, isLoading, isError, error } = useAsyncFlow(userFlow, {
-        suspense: false,
-        errorBoundary: false,
-    });
+    const [user, { isLoading, isError, error }] = useAsyncFlow(userFlow);
 
+    // To opt-out from Suspense you should check isLoading flag before calling the user()
     if (isLoading) return <div>Loading...</div>;
+
+    // To opt-out from Error Boundary you should check isError flag before calling the user()
     if (isError) return <div>Error: {error.message}</div>;
-    return <div>Welcome, {data.name}!</div>;
-}
-```
 
-### `useAsyncFlows<T>(flows: AsyncFlow<T>[], options?): UseAsyncFlowsResult<T>`
-
-Subscribes to multiple AsyncFlows simultaneously and returns their combined state. Loads all flows in parallel to avoid request waterfalls. Always works with Suspense; use `errorBoundary` option to control error handling.
-
-```tsx
-import { Suspense } from "react";
-import { ErrorBoundary } from "react-error-boundary";
-import { useAsyncFlows } from "@tsip/flow-react";
-
-function App() {
-    return (
-        <ErrorBoundary fallback={<div>Something went wrong</div>}>
-            <Suspense fallback={<div>Loading...</div>}>
-                <Dashboard />
-            </Suspense>
-        </ErrorBoundary>
-    );
-}
-
-function Dashboard() {
-    const [user, settings, notifications] = useAsyncFlows([userFlow, settingsFlow, notificationsFlow]);
-
-    return (
-        <div>
-            <h1>Welcome, {user.data.name}</h1>
-            <Settings data={settings.data} />
-            <Notifications data={notifications.data} />
-        </div>
-    );
+    return <div>Welcome, {user().name}!</div>;
 }
 ```
 
@@ -221,7 +187,7 @@ app.get("/", (req, res) => {
     );
 
     htmlStream.on("finish", () => res.end());
-    htmlStream.on("error", (err) => res.end());
+    htmlStream.on("error", () => res.end());
 });
 ```
 

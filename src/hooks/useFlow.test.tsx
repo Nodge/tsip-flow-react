@@ -162,7 +162,7 @@ describe("useFlow", () => {
         it("should hydrate without errors with different values on server and client", () => {
             const flow = createFlow("client value");
             const manager = createClientHydrationManager();
-            window._FS_ = new Map([["«R0»", "server value"]]);
+            window._FS_ = new Map([["_R_0_", "server value"]]);
 
             const html = '<div data-testid="value">server value</div>';
             const container = document.createElement("div");
@@ -202,7 +202,7 @@ describe("useFlow", () => {
             );
 
             expect(html).toMatchInlineSnapshot(
-                `"<script>(()=>{var c,n,w=self,s='_FS_';w[s]||(w[s]=new Map);c=c=>{(n=document.currentScript)&&n.remove()};w[s].m=r=>{for(var[k,v]of r)w[s].set(k,v);c()};w[s].d=r=>{for(var[f,t]of r)w[s].set(t,w[s].get(f));c()}})();_FS_.m(new Map([["«R0»","server value"]]));</script><div data-testid="value">server value</div>"`,
+                `"<script>(()=>{var c,n,w=self,s='_FS_';w[s]||(w[s]=new Map);c=c=>{(n=document.currentScript)&&n.remove()};w[s].m=r=>{for(var[k,v]of r)w[s].set(k,v);c()};w[s].d=r=>{for(var[f,t]of r)w[s].set(t,w[s].get(f));c()}})();_FS_.m(new Map([["_R_0_","server value"]]));</script><div data-testid="value">server value</div>"`,
             );
 
             const hydrationContainer = document.createElement("div");
@@ -271,7 +271,10 @@ describe("useFlow", () => {
             const { html } = await renderPromise;
 
             expect(html).toMatchInlineSnapshot(
-                `"<main><h1>App</h1><!--$?--><template id="B:0"></template><div data-testid="fallback">Loading...</div><!--/$--></main><script>(()=>{var c,n,w=self,s='_FS_';w[s]||(w[s]=new Map);c=c=>{(n=document.currentScript)&&n.remove()};w[s].m=r=>{for(var[k,v]of r)w[s].set(k,v);c()};w[s].d=r=>{for(var[f,t]of r)w[s].set(t,w[s].get(f));c()}})();_FS_.m(new Map([["«R2»","server value"]]));</script><div hidden id="S:0"><div data-testid="value">server value</div></div><script>$RC=function(b,c,e){c=document.getElementById(c);c.parentNode.removeChild(c);var a=document.getElementById(b);if(a){b=a.previousSibling;if(e)b.data="$!",a.setAttribute("data-dgst",e);else{e=b.parentNode;a=b.nextSibling;var f=0;do{if(a&&8===a.nodeType){var d=a.data;if("/$"===d)if(0===f)break;else f--;else"$"!==d&&"$?"!==d&&"$!"!==d||f++}d=a.nextSibling;e.removeChild(a);a=d}while(a);for(;c.firstChild;)e.insertBefore(c.firstChild,a);b.data="$"}b._reactRetry&&b._reactRetry()}};$RC("B:0","S:0")</script>"`,
+                `
+              "<main><h1>App</h1><!--$?--><template id="B:0"></template><div data-testid="fallback">Loading...</div><!--/$--></main><script>requestAnimationFrame(function(){$RT=performance.now()});</script><script>(()=>{var c,n,w=self,s='_FS_';w[s]||(w[s]=new Map);c=c=>{(n=document.currentScript)&&n.remove()};w[s].m=r=>{for(var[k,v]of r)w[s].set(k,v);c()};w[s].d=r=>{for(var[f,t]of r)w[s].set(t,w[s].get(f));c()}})();_FS_.m(new Map([["_R_2_","server value"]]));</script><div hidden id="S:0"><div data-testid="value">server value</div></div><script>$RB=[];$RV=function(a){$RT=performance.now();for(var b=0;b<a.length;b+=2){var c=a[b],e=a[b+1];null!==e.parentNode&&e.parentNode.removeChild(e);var f=c.parentNode;if(f){var g=c.previousSibling,h=0;do{if(c&&8===c.nodeType){var d=c.data;if("/$"===d||"/&"===d)if(0===h)break;else h--;else"$"!==d&&"$?"!==d&&"$~"!==d&&"$!"!==d&&"&"!==d||h++}d=c.nextSibling;f.removeChild(c);c=d}while(c);for(;e.firstChild;)f.insertBefore(e.firstChild,c);g.data="$";g._reactRetry&&requestAnimationFrame(g._reactRetry)}}a.length=0};
+              $RC=function(a,b){if(b=document.getElementById(b))(a=document.getElementById(a))?(a.previousSibling.data="$~",$RB.push(a,b),2===$RB.length&&("number"!==typeof $RT?requestAnimationFrame($RV.bind(null,$RB)):(a=performance.now(),setTimeout($RV.bind(null,$RB),2300>a&&2E3<a?2300-a:$RT+300-a)))):b.parentNode.removeChild(b)};$RC("B:0","S:0")</script>"
+            `,
             );
 
             const hydrationContainer = document.createElement("div");
