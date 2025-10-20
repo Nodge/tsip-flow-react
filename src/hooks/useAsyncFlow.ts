@@ -1,55 +1,25 @@
 import type { AsyncFlow, AsyncFlowState } from "@tsip/types";
-import { useRef, useEffect, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { skipToken, type SkipToken } from "../skipToken";
 import { useFlow } from "./useFlow";
 import { useIsSsr } from "./useIsSsr";
 
 /**
- * Options for configuring the behavior of {@link useAsyncFlow}.
+ * A function that accesses and returns the current data from an AsyncFlow.
  *
- * @typeParam UseSuspense - Whether to enable Suspense integration
- * @typeParam UseErrorBoundary - Whether to enable ErrorBoundary integration
+ * @typeParam T - The type of data being accessed
+ * @throws A promise (for Suspense) or an error (for ErrorBoundary).
  */
-export interface UseAsyncFlowOptions<
-    UseSuspense extends boolean = boolean,
-    UseErrorBoundary extends boolean = boolean,
-> {
-    /**
-     * Enables Suspense integration for loading states.
-     *
-     * When `true`, the hook will throw a promise during initial loading,
-     * allowing React Suspense to handle the loading state. When `false`,
-     * the hook returns a loading state object instead.
-     *
-     * Note: On the server side, Suspense always works regardless of this setting.
-     *
-     * @default true
-     */
-    suspense?: UseSuspense;
-
-    /**
-     * Enables ErrorBoundary integration for error states.
-     *
-     * When `true`, the hook will throw errors, allowing React ErrorBoundary
-     * to handle them. When `false`, the hook returns an error state object instead.
-     *
-     * @default true
-     */
-    errorBoundary?: UseErrorBoundary;
-}
+export type UseAsyncFlowAccessor<T> = () => T;
 
 /**
  * Represents a successful state where data has been loaded.
- *
- * @typeParam T - The type of data
  */
 export interface SuccessState<T> {
     /** Indicates if this is the initial data load. Always `false` for success state. */
     isLoading: false;
     /** Indicates if an error occurred. Always `false` for success state. */
     isError: false;
-    /** The cached data. In success state, this is always the current data. */
-    data: T;
     /** The error that occurred. Always `undefined` for success state. */
     error: undefined;
     /** Indicates if new data is being fetched. Always `false` for success state. */
@@ -66,8 +36,6 @@ export interface LoadingState {
     isLoading: true;
     /** Indicates if an error occurred. Always `false` for loading state. */
     isError: false;
-    /** The cached data. Always `undefined` during initial load. */
-    data: undefined;
     /** The error that occurred. Always `undefined` for loading state. */
     error: undefined;
     /** Indicates if new data is being fetched. Always `true` for loading state. */
@@ -78,16 +46,12 @@ export interface LoadingState {
 
 /**
  * Represents a state where cached data exists but new data is being fetched.
- *
- * @typeParam T - The type of data
  */
-export interface UpdatingState<T> {
+export interface UpdatingState {
     /** Indicates if this is the initial data load. Always `false` for updating state. */
     isLoading: false;
     /** Indicates if an error occurred. Always `false` for updating state. */
     isError: false;
-    /** The cached data from the previous successful flow state. May be stale. */
-    data: T;
     /** The error that occurred. Always `undefined` for updating state. */
     error: undefined;
     /** Indicates if new data is being fetched. Always `true` for updating state. */
@@ -98,23 +62,44 @@ export interface UpdatingState<T> {
 
 /**
  * Represents an error state where data fetching failed.
- *
- * @typeParam T - The type of data
  */
 export interface ErrorState<T> {
     /** Indicates if this is the initial data load. Always `false` for error state. */
     isLoading: false;
     /** Indicates if an error occurred. Always `true` for error state. */
     isError: true;
-    /** The cached data from a previous successful flow state, if any. May be `undefined`. */
-    data: T | undefined;
     /** The error that occurred during async flow loading. */
     error: unknown;
     /** Indicates if new data is being fetched. Always `false` for error state. */
     isFetching: false;
-    /** The most up-to-date data available. Always `undefined` in error state. */
+    /** The most up-to-date data available. */
+    currentData: T | undefined;
+}
+
+/**
+ * Represents a skipped state when `skipToken` is passed to the hook.
+ */
+export interface SkippedState {
+    /** Indicates if this is the initial data load. Always `false` for skipped state. */
+    isLoading: false;
+    /** Indicates if an error occurred. Always `false` for skipped state. */
+    isError: false;
+    /** The error that occurred. Always `undefined` for skipped state. */
+    error: undefined;
+    /** Indicates if new data is being fetched. Always `false` for skipped state. */
+    isFetching: false;
+    /** The most up-to-date data available. Always `undefined` for skipped state. */
     currentData: undefined;
 }
+
+/**
+ * A union type representing all possible states of an async flow operation.
+ *
+ * @typeParam T - The type of data being managed by the async flow
+ *
+ * @see {@link UseAsyncFlowResult} for the complete return type of the hook
+ */
+export type UseAsyncFlowState<T> = SuccessState<T> | LoadingState | UpdatingState | ErrorState<T>;
 
 /**
  * The result type returned by {@link useAsyncFlow}, which varies based on options.
@@ -128,15 +113,14 @@ export interface ErrorState<T> {
  * @typeParam UseSuspense - Whether Suspense is enabled
  * @typeParam UseErrorBoundary - Whether ErrorBoundary is enabled
  */
-export type UseAsyncFlowResult<T, UseSuspense extends boolean, UseErrorBoundary extends boolean> = [
-    UseSuspense,
-] extends [true]
-    ? [UseErrorBoundary] extends [true]
-        ? SuccessState<T> | UpdatingState<T>
-        : SuccessState<T> | UpdatingState<T> | ErrorState<T>
-    : [UseErrorBoundary] extends [true]
-      ? SuccessState<T> | LoadingState | UpdatingState<T>
-      : SuccessState<T> | LoadingState | UpdatingState<T> | ErrorState<T>;
+export type UseAsyncFlowResult<T> = [UseAsyncFlowAccessor<T>, UseAsyncFlowState<T>];
+
+/**
+ * Stores the previous state of each AsyncFlow to enable proper state transitions.
+ * This is used to determine if a pending state should be treated as an update
+ * (when previous data exists) or initial loading (when no previous data exists).
+ */
+const previousStates = new WeakMap<AsyncFlow<unknown>, AsyncFlowState<unknown>>();
 
 /**
  * Subscribes to an AsyncFlow and returns its state with Suspense and ErrorBoundary support.
@@ -192,52 +176,50 @@ export type UseAsyncFlowResult<T, UseSuspense extends boolean, UseErrorBoundary 
  * }
  * ```
  */
-export function useAsyncFlow<UseSuspense extends boolean = true, UseErrorBoundary extends boolean = true>(
-    flow: SkipToken,
-    options?: UseAsyncFlowOptions<UseSuspense, UseErrorBoundary>,
-): null;
-export function useAsyncFlow<T, UseSuspense extends boolean = true, UseErrorBoundary extends boolean = true>(
-    flow: AsyncFlow<T>,
-    options?: UseAsyncFlowOptions<UseSuspense, UseErrorBoundary>,
-): UseAsyncFlowResult<T, UseSuspense, UseErrorBoundary>;
-export function useAsyncFlow<T, UseSuspense extends boolean = true, UseErrorBoundary extends boolean = true>(
-    flow: AsyncFlow<T> | SkipToken,
-    options?: UseAsyncFlowOptions<UseSuspense, UseErrorBoundary>,
-): UseAsyncFlowResult<T, UseSuspense, UseErrorBoundary> | null;
-export function useAsyncFlow<T, UseSuspense extends boolean = true, UseErrorBoundary extends boolean = true>(
-    flow: AsyncFlow<T> | SkipToken,
-    options?: UseAsyncFlowOptions<UseSuspense, UseErrorBoundary>,
-): UseAsyncFlowResult<T, UseSuspense, UseErrorBoundary> | null {
+export function useAsyncFlow(flow: SkipToken): [null, SkippedState];
+export function useAsyncFlow<T>(flow: AsyncFlow<T>): UseAsyncFlowResult<T>;
+export function useAsyncFlow<T>(flow: AsyncFlow<T> | SkipToken): UseAsyncFlowResult<T> | [null, SkippedState];
+export function useAsyncFlow<T>(flow: AsyncFlow<T> | SkipToken): UseAsyncFlowResult<T> | [null, SkippedState] {
     const state = useFlow(flow);
-    const prevStateRef = useRef(state);
-    const { suspense, errorBoundary } = options ?? {};
     const isSsr = useIsSsr();
 
     useEffect(() => {
-        prevStateRef.current = state;
-    }, [state]);
+        if (flow !== skipToken && state) {
+            previousStates.set(flow, state);
+        }
+    }, [flow, state]);
 
-    return useMemo(() => {
+    const reader = useMemo(() => {
         if (!state || flow === skipToken) {
             return null;
         }
 
-        const prevState = prevStateRef.current;
+        return (): T => {
+            let readerState = state;
 
-        if (state.status === "pending") {
-            if (prevState && prevState.status === "success") {
-                return updatingState(prevState.data);
+            const isServer = typeof window === "undefined";
+            const isHydration = isSsr && !isServer;
+            if (!isHydration) {
+                // During hydration, we must use the frozen state from the useFlow() hook to avoid hydration errors,
+                // but otherwise we want the most recent state of the flow
+                readerState = flow.getSnapshot();
             }
 
-            if (state.data !== undefined) {
-                return updatingState(state.data);
-            }
+            const prevState = previousStates.get(flow) as AsyncFlowState<T> | undefined;
 
-            const isSuspenseEnabled = suspense !== false || isSsr;
-            if (isSuspenseEnabled) {
+            if (readerState.status === "pending") {
+                if (prevState && prevState.status === "success") {
+                    return prevState.data;
+                }
+
+                if (readerState.data !== undefined) {
+                    return readerState.data;
+                }
+
                 const isServer = typeof window === "undefined";
                 const isHydration = isSsr && !isServer;
                 if (isHydration) {
+                    // A pending state during the hydration process leads to an infinite loading state and should not occur in normal operation
                     throw new Error("Unexpected pending state for async flow during component hydration");
                 }
 
@@ -245,31 +227,57 @@ export function useAsyncFlow<T, UseSuspense extends boolean = true, UseErrorBoun
                 throw flow.asPromise();
             }
 
-            return loadingState() as UseAsyncFlowResult<T, UseSuspense, UseErrorBoundary>;
+            if (readerState.status === "error" && readerState.data === undefined) {
+                throw readerState.error;
+            }
+
+            return readerState.data as T;
+        };
+    }, [flow, state, isSsr]);
+
+    const result = useMemo(() => {
+        if (!state || flow === skipToken) {
+            return skippedState();
+        }
+
+        const prevState = previousStates.get(flow);
+
+        if (state.status === "pending") {
+            if (prevState && prevState.status === "success") {
+                return updatingState();
+            }
+
+            if (state.data !== undefined) {
+                return updatingState();
+            }
+
+            return isSsr ? updatingState() : loadingState();
         }
 
         if (state.status === "error") {
-            if (errorBoundary !== false) {
-                throw state.error;
-            }
-
-            return errorState(state, prevState) as UseAsyncFlowResult<T, UseSuspense, UseErrorBoundary>;
+            return errorState(state);
         }
 
         return successState(state);
-    }, [state, flow, suspense, errorBoundary]);
+    }, [state, flow, isSsr]);
+
+    return useMemo(() => {
+        return [reader, result] as UseAsyncFlowResult<T>;
+    }, [reader, result]);
 }
 
 /**
  * Creates a success state object from an AsyncFlow state.
  *
+ * @typeParam T - The type of data in the state
+ * @param state - The AsyncFlow state with success status
+ * @returns A success state object
  * @internal
  */
 function successState<T>(state: AsyncFlowState<T> & { status: "success" }): SuccessState<T> {
     return {
         isLoading: false,
         isError: false,
-        data: state.data,
         error: undefined,
         isFetching: false,
         currentData: state.data,
@@ -277,15 +285,15 @@ function successState<T>(state: AsyncFlowState<T> & { status: "success" }): Succ
 }
 
 /**
- * Creates a loading state object.
+ * Creates a loading state object for initial data load.
  *
+ * @returns A loading state object
  * @internal
  */
 function loadingState(): LoadingState {
     return {
         isLoading: true,
         isError: false,
-        data: undefined,
         error: undefined,
         isFetching: true,
         currentData: undefined,
@@ -293,15 +301,15 @@ function loadingState(): LoadingState {
 }
 
 /**
- * Creates an updating state object with cached data.
+ * Creates an updating state object when fetching new data while cached data exists.
  *
+ * @returns An updating state object
  * @internal
  */
-function updatingState<T>(data: T): UpdatingState<T> {
+function updatingState(): UpdatingState {
     return {
         isLoading: false,
         isError: false,
-        data,
         error: undefined,
         isFetching: true,
         currentData: undefined,
@@ -311,17 +319,32 @@ function updatingState<T>(data: T): UpdatingState<T> {
 /**
  * Creates an error state object from an AsyncFlow state.
  *
+ * @typeParam T - The type of data in the state
+ * @param state - The AsyncFlow state with error status
+ * @returns An error state object
  * @internal
  */
-function errorState<T>(
-    state: AsyncFlowState<T> & { status: "error" },
-    prevState: AsyncFlowState<T> | null,
-): ErrorState<T> {
+function errorState<T>(state: AsyncFlowState<T> & { status: "error" }): ErrorState<T> {
     return {
         isLoading: false,
         isError: true,
-        data: state.data ?? prevState?.data,
         error: state.error,
+        isFetching: false,
+        currentData: state.data,
+    };
+}
+
+/**
+ * Creates a skipped state object when `skipToken` is passed.
+ *
+ * @returns A skipped state object
+ * @internal
+ */
+function skippedState(): SkippedState {
+    return {
+        isLoading: false,
+        isError: false,
+        error: undefined,
         isFetching: false,
         currentData: undefined,
     };
