@@ -31,11 +31,11 @@ importers:
         specifier: 16.3.0
         version: 16.3.0(@testing-library/dom@10.4.1)(@types/react-dom@19.2.1(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tsip/flow':
-        specifier: 0.1.0
-        version: 0.1.0
-      '@tsip/types':
         specifier: 0.2.0
         version: 0.2.0
+      '@tsip/types':
+        specifier: 0.4.0
+        version: 0.4.0
       '@types/eslint':
         specifier: 9.6.1
         version: 9.6.1
@@ -682,12 +682,12 @@ packages:
       '@types/react-dom':
         optional: true
 
-  '@tsip/flow@0.1.0':
-    resolution: {integrity: sha512-Zl6UoFVYVyhZcUSBycnHSfuOsswP3IxlMnK8dRN2ZIFiUaMeoblQjeyafsEBOWN/qTXOejomvQEXNzDcSry1Qg==}
+  '@tsip/flow@0.2.0':
+    resolution: {integrity: sha512-B0CbVt7yhNhRr5/NArkasjjwZlCQpmq8xYJNt+XMt7ppOH3PtOiEB5b4/6TyDKvMc33N9WNr4CpENp9cPHbHNg==}
     engines: {node: '>=18'}
 
-  '@tsip/types@0.2.0':
-    resolution: {integrity: sha512-Pxi/cKgiNo0aW8yFUWvctmCqTGj4Qb1fb24WYQVAneO+Ve8Am06ZjKsVsWlvHxB5dX0KiliKreKRerAoZOVxJQ==}
+  '@tsip/types@0.4.0':
+    resolution: {integrity: sha512-YrS+bmxAL/Jnzt2X91Iqbw4s4uElpyG9LfwkQwJPw4Pnq4M4Dw0qmuyKRJxhvIY2JngYYTZehqJ7dhTHTNsaSA==}
     engines: {node: '>=18'}
 
   '@types/aria-query@5.0.4':
@@ -2779,9 +2779,9 @@ snapshots:
       '@types/react': 19.2.2
       '@types/react-dom': 19.2.1(@types/react@19.2.2)
 
-  '@tsip/flow@0.1.0': {}
+  '@tsip/flow@0.2.0': {}
 
-  '@tsip/types@0.2.0': {}
+  '@tsip/types@0.4.0': {}
 
   '@types/aria-query@5.0.4': {}
 
