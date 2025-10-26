@@ -1,5 +1,11 @@
 # @tsip/flow-react
 
+## 0.2.1
+
+### Patch Changes
+
+- [#7](https://github.com/Nodge/tsip-flow-react/pull/7) [`a7aa53f`](https://github.com/Nodge/tsip-flow-react/commit/a7aa53ff7b09bfb263b5f510cb817a9120485e68) Thanks [@Nodge](https://github.com/Nodge)! - Fixed type inference for useAsyncFlow.
+
 ## 0.2.0
 
 ### Minor Changes
