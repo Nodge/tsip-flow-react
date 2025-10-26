@@ -1,4 +1,4 @@
-import type { AsyncFlow, AsyncFlowState } from "@tsip/types";
+import type { AsyncFlow, AsyncFlowState, InferAsyncFlowValue } from "@tsip/types";
 import { useEffect, useMemo } from "react";
 import { skipToken, type SkipToken } from "../skipToken";
 import { useFlow } from "./useFlow";
@@ -177,9 +177,15 @@ const previousStates = new WeakMap<AsyncFlow<unknown>, AsyncFlowState<unknown>>(
  * ```
  */
 export function useAsyncFlow(flow: SkipToken): [null, SkippedState];
-export function useAsyncFlow<T>(flow: AsyncFlow<T>): UseAsyncFlowResult<T>;
-export function useAsyncFlow<T>(flow: AsyncFlow<T> | SkipToken): UseAsyncFlowResult<T> | [null, SkippedState];
-export function useAsyncFlow<T>(flow: AsyncFlow<T> | SkipToken): UseAsyncFlowResult<T> | [null, SkippedState] {
+export function useAsyncFlow<T extends AsyncFlow<unknown>>(flow: T): UseAsyncFlowResult<InferAsyncFlowValue<T>>;
+export function useAsyncFlow<T extends AsyncFlow<unknown>>(
+    flow: T | SkipToken,
+): UseAsyncFlowResult<InferAsyncFlowValue<T>> | [null, SkippedState];
+export function useAsyncFlow<T extends AsyncFlow<unknown>>(
+    flow: T | SkipToken,
+): UseAsyncFlowResult<InferAsyncFlowValue<T>> | [null, SkippedState] {
+    type Data = InferAsyncFlowValue<T>;
+
     const state = useFlow(flow);
     const isSsr = useIsSsr();
 
@@ -194,7 +200,7 @@ export function useAsyncFlow<T>(flow: AsyncFlow<T> | SkipToken): UseAsyncFlowRes
             return null;
         }
 
-        return (): T => {
+        return (): Data => {
             let readerState = state;
 
             const isServer = typeof window === "undefined";
@@ -205,7 +211,7 @@ export function useAsyncFlow<T>(flow: AsyncFlow<T> | SkipToken): UseAsyncFlowRes
                 readerState = flow.getSnapshot();
             }
 
-            const prevState = previousStates.get(flow) as AsyncFlowState<T> | undefined;
+            const prevState = previousStates.get(flow) as AsyncFlowState<Data> | undefined;
 
             if (readerState.status === "pending") {
                 if (prevState && prevState.status === "success") {
@@ -213,7 +219,7 @@ export function useAsyncFlow<T>(flow: AsyncFlow<T> | SkipToken): UseAsyncFlowRes
                 }
 
                 if (readerState.data !== undefined) {
-                    return readerState.data;
+                    return readerState.data as Data;
                 }
 
                 const isServer = typeof window === "undefined";
@@ -231,7 +237,7 @@ export function useAsyncFlow<T>(flow: AsyncFlow<T> | SkipToken): UseAsyncFlowRes
                 throw readerState.error;
             }
 
-            return readerState.data as T;
+            return readerState.data as Data;
         };
     }, [flow, state, isSsr]);
 
@@ -262,7 +268,7 @@ export function useAsyncFlow<T>(flow: AsyncFlow<T> | SkipToken): UseAsyncFlowRes
     }, [state, flow, isSsr]);
 
     return useMemo(() => {
-        return [reader, result] as UseAsyncFlowResult<T>;
+        return [reader, result] as UseAsyncFlowResult<Data>;
     }, [reader, result]);
 }
 
